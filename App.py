@@ -14,8 +14,9 @@ import bcrypt
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-
-# Conexão com banco de dados SQLite
+import pyfiglet
+import requests
+import PyPDF2
 sql = sqlite.connect('data.db')
 cursor = sql.cursor()
 color.init()
@@ -279,17 +280,147 @@ def enviar_email():
     HOME()
 
 def responder_clientes():
-    print(color.Fore.YELLOW + '* Função "responder_clientes" ainda não implementada.')
-    input('Pressione enter para voltar...')
-    HOME()
+    print(color.Fore.BLUE +'Responder Clientes')
 
-def resumir_pdfs():
-    print(color.Fore.YELLOW + '* Função "resumir_pdfs" ainda não implementada.')
+    genai.configure(api_key=APIKEY)
+    model = genai.GenerativeModel('gemini-1.5-flash')
+
+    print(color.fore.YELLOW + "Nome do cliente")
+    n = input(">_")
+    print (color.fore.YELLOW + "Assunto da resposta: ")
+    a = input(">_")
+    print(color.fore.YELLOW + "Tipo do problema:" )
+    t = input(">_")
+    print(color.fore.YELLOW + "Resposta")
+    r = input('>_')
+    try:
+        res = model.generate_content(
+    f"Você é um especialista em Atendimento ao Cliente. Sua tarefa é redigir uma resposta formal, clara e cordial para o cliente {n}. "
+    f"O assunto tratado é {a}. O tipo de pergunta do cliente é {t} e a forma esperada de resposta é {r}. "
+    "Utilize a norma‑padrão da língua portuguesa. Entregue apenas a resposta ao cliente, em texto corrido, "
+    "sem qualquer tipo de formatação (negrito, itálico, listas, cabeçalhos, código ou quebras de linha extras)."
+)
+        print(res.text)
+        print('______________________________________')
+        print(' ')
+        q10 = [
+    {
+        'type': 'list',
+        'name': 'OP',
+        'message': 'Como deseja salvar a resposta?',
+        'choices': ['PDF', 'HTTP', 'TXT']
+    }
+]
+
+        rep = inq.prompt(q10)
+        if rep['OP'] == 'PDF':
+            ideia = input('Nome do arquivo: ')
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font('Arial', '', 12)
+            pdf.multi_cell(0, 10, res.text)
+            caminho = filedialog.askdirectory()
+            pdf.output(f'{caminho}/resposta.pdf')
+        elif rep['OP'] == 'HTTP':
+            print(color.Fore.YELLOW + "Insira o servidor: ")
+            s = input(">_")
+            try:
+                requests.post(s, res.text)
+                print(color.Fore.GREEN + "✔ Resposta enviada com sucesso!")
+            except Exception as e:
+                print(color.Fore.RED + f"Erro ao enviar a resposta: {e}")
+        elif rep['OP'] == 'TXT':
+            dir = filedialog.askdirectory()
+            with open(f'{dir}/rep.txt', 'w') as f:
+                f.write(res.text)
+    except Exception as e:
+        print(color.Fore.RED + f""""
+               ___________________________________
+              |                                   |
+              |  Parece que a IA bugou. E ela     |
+              |  Retornou o erro: {e}             |
+              |                                   |
+              |___________________________________|""")
+
     input('Pressione enter para voltar...')
     HOME()
+    
+def resumir_pdfs():
+    genai.configure(api_key=APIKEY)
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    
+    print(color.Fore.YELLOW + 'Selecione o arquivo PDF:')
+    PATH = filedialog.askopenfilename(filetypes=[("PDF files", "*.pdf")])
+    if not PATH:
+        print(color.Fore.RED + "Nenhum arquivo selecionado.")
+        return
+    
+    try:
+        with open(PATH, 'rb') as f:
+            leitor = PyPDF2.PdfReader(f)
+            txt = ""
+            for pagina in leitor.pages:
+                txt += pagina.extract_text() or ""
+        
+        prompt_text = (f"Por favor, resuma o conteúdo a seguir, extraído de um arquivo PDF, "
+                       f"de forma clara e concisa, mantendo os pontos principais:\n{txt}")
+        
+        res = model.generate_content(prompt_text)
+        resumo = res.text
+        
+        print(color.Fore.GREEN + "Resumo gerado com sucesso!")
+        print(resumo)
+        
+        q11 = [
+            inq.List(
+                'OP',
+                message='Como deseja salvar o resumo?',
+                choices=['PDF', 'TXT']
+            )
+        ]
+        rep = inq.prompt(q11)
+        
+        ideia = input('Nome do arquivo (sem extensão): ')
+        caminho = filedialog.askdirectory()
+        if not caminho:
+            print(color.Fore.RED + "Nenhum diretório selecionado.")
+            return
+        
+        if rep['OP'] == 'PDF':
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font('Arial', '', 12)
+            pdf.multi_cell(0, 10, resumo)
+            pdf.output(f'{caminho}/{ideia}.pdf')
+        elif rep['OP'] == 'TXT':
+            with open(f'{caminho}/{ideia}.txt', 'w', encoding='utf-8') as f:
+                f.write(resumo)
+        
+        print(color.Fore.GREEN + f"Arquivo salvo em: {caminho}/{ideia}.{rep['OP'].lower()}")
+    
+    except Exception as e:
+        print(color.Fore.RED + f"Erro: {e}")
+
+    except Exception as e:
+        print(color.Fore.RED + f"Erro ao resumir o PDF: {e}")
+    input('Pressione enter para voltar...')
+    HOME()
+        
 
 def http():
-    print(color.Fore.YELLOW + '* Função "http" ainda não implementada.')
+    print(color.Fore.YELLOW + "HTTP")
+    print('--------------------------------------')
+    print(color.Fore.YELLOW + "Insira o servidor: ")
+    s = input(">_")
+    print(color.Fore.YELLOW + "Insira o texto: ")
+    F = filedialog.askopenfilename()
+    with open (F, 'r') as f:
+        F = f.read()
+    try:
+        requests.post(s, F)
+        print(color.Fore.GREEN + "✔ JSON enviado com sucesso!")
+    except Exception as e:
+        print(color.Fore.RED + f"Erro ao enviar JSON: {e}")
     input('Pressione enter para voltar...')
     HOME()
 
